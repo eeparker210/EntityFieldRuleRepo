@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scenario B – Publisher Validation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #F0F0F5;
+    color: #1A1A2E;
+    padding: 48px 40px;
+    min-height: 100vh;
+  }
+
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #5A58F2; margin-bottom: 6px; }
+  .page-header h2 { font-size: 20px; font-weight: 600; color: #1A1A2E; margin-bottom: 4px; }
+  .page-header p  { font-size: 13px; color: #6B7280; }
+
+  .card { background: #fff; border-radius: 12px; border: 1px solid #E5E7EB; max-width: 820px; }
+  .card-header {
+    padding: 14px 20px; border-bottom: 1px solid #E5E7EB;
+    display: flex; align-items: center; gap: 8px;
+    background: #FAFAFA; border-radius: 12px 12px 0 0;
+  }
+  .card-header svg { color: #9CA3AF; }
+  .card-title { font-size: 13px; font-weight: 600; color: #374151; }
+  .card-body { padding: 24px; }
+
+  .field-row { display: flex; gap: 20px; align-items: flex-start; }
+  .field-label-col { width: 120px; flex-shrink: 0; padding-top: 10px; }
+  .field-label { font-size: 13px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 4px; }
+  .info-icon {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1.5px solid #9CA3AF; color: #9CA3AF;
+    font-size: 9px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: default; flex-shrink: 0;
+  }
+  .field-sub { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+  .field-input-col { flex: 1; min-width: 0; }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%; padding: 9px 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: #1A1A2E;
+    resize: vertical; outline: none; line-height: 1.5;
+    border-radius: 6px; min-height: 88px;
+    border: 1.5px solid #D1D5DB; background: #fff;
+    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+  }
+  textarea:focus { border-color: #9CA3AF; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+  textarea.state-error    { border-color: #FCA5A5; }
+  textarea.state-error:focus { border-color: #EF4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+  textarea.state-resolved { border-color: #6EE7B7; }
+  textarea.state-resolved:focus { border-color: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+
+  /* ── Char counter ── */
+  .char-counter {
+    display: flex; justify-content: flex-end;
+    font-size: 11px; color: #9CA3AF; margin-top: 4px;
+    transition: color 0.2s; font-variant-numeric: tabular-nums;
+  }
+  .char-counter.warn  { color: #D97706; }
+  .char-counter.error { color: #EF4444; font-weight: 600; }
+
+  /* ── Validation panel ── */
+  .validation-panel {
+    max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; margin-top: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease, margin-top 0.25s ease;
+  }
+  .validation-panel.visible {
+    /* visible but still gated by open class */
+    max-height: 0; opacity: 0; pointer-events: none; margin-top: 0;
+  }
+  .validation-panel.visible.open {
+    max-height: 700px; opacity: 1; pointer-events: auto; margin-top: 0;
+  }
+
+  .validation-shell {
+    border: 1px solid #E5E7EB; border-radius: 8px; overflow: visible; background: #fff;
+    transition: border-color 0.3s;
+  }
+  .validation-shell.all-resolved { border-color: #6EE7B7; }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;
+    border-radius: 8px 8px 0 0;
+    transition: border-color 0.3s;
+  }
+  .validation-shell.all-resolved .tab-bar { border-bottom-color: #6EE7B7; }
+
+  .tab {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 14px;
+    font-size: 11.5px; font-weight: 600; color: #9CA3AF;
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    user-select: none; white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .tab:hover { color: #6B7280; }
+  .tab.has-error { color: #374151; }
+  .tab.active { color: #1A1A2E; border-bottom-color: #5A58F2; background: #fff; }
+  .tab.tab-resolved { color: #059669; }
+  .tab.active.tab-resolved { border-bottom-color: #10B981; }
+
+  .tab-badge {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 1px 5px; border-radius: 3px;
+  }
+  .badge-tier1   { background: #EDE9FE; color: #5B21B6; }
+  .badge-network { background: #F3F4F6; color: #6B7280; }
+
+  /* Issue count pill on tab */
+  .tab-count {
+    min-width: 16px; height: 16px; border-radius: 8px;
+    background: #FEE2E2; color: #B91C1C;
+    font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 4px;
+    transition: background 0.3s, color 0.3s;
+  }
+  .tab-count.count-resolved { background: #D1FAE5; color: #065F46; }
+  .tab-count.count-zero { display: none; }
+
+  /* ── Tab content ── */
+  .tab-content { display: none; padding: 14px; }
+  .tab-content.active { display: block; }
+
+  .tab-intro {
+    font-size: 12.5px; color: #374151; line-height: 1.65; margin-bottom: 14px;
+  }
+  .tab-intro strong { font-weight: 600; color: #1A1A2E; }
+
+  /* ── Publisher list ── */
+  .publisher-list { display: flex; flex-direction: column; gap: 6px; }
+
+  /* ── Publisher block ── */
+  .publisher-block {
+    border: 1px solid #E5E7EB; border-radius: 7px; overflow: visible;
+    transition: border-color 0.3s;
+  }
+  .publisher-block.pub-resolved { border-color: #A7F3D0; }
+
+  .publisher-block-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px;
+    border-radius: 7px 7px 0 0;
+    border-bottom: 1px solid #F3F4F6;
+    transition: border-color 0.3s;
+  }
+  .publisher-block.pub-resolved .publisher-block-header { border-bottom-color: #D1FAE5; }
+
+  .publisher-name {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 600; color: #1A1A2E;
+  }
+
+  /* Small status dot */
+  .pub-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    background: #EF4444; transition: background 0.3s;
+  }
+  .publisher-block.pub-resolved .pub-dot { background: #10B981; }
+
+  .publisher-header-right {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+
+  .publisher-status {
+    font-size: 10.5px; font-weight: 500; padding: 1px 7px; border-radius: 3px;
+  }
+  .status-error    { background: #FEE2E2; color: #B91C1C; }
+  .status-resolved { background: #D1FAE5; color: #065F46; }
+
+  .publisher-block-body {
+    padding: 8px 12px; display: flex; flex-direction: column; gap: 5px;
+  }
+
+  /* ── Issue rows ── */
+  .issue-row {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    padding: 6px 8px;
+    border: 1px solid #F3F4F6; border-radius: 5px;
+    background: #FAFAFA;
+    transition: background 0.3s, border-color 0.3s, max-height 0.3s, opacity 0.25s, padding 0.3s;
+    overflow: hidden;
+  }
+  .issue-row.issue-hidden { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; pointer-events: none; border: none; }
+  .issue-row.issue-resolved { background: #F0FDF9; border-color: #D1FAE5; }
+
+  .issue-row-text {
+    font-size: 12px; color: #4B5563; line-height: 1.5; flex: 1;
+    display: flex; align-items: flex-start; gap: 7px;
+  }
+  .issue-bullet { color: #EF4444; font-size: 13px; line-height: 1.6; flex-shrink: 0; }
+  .issue-row.issue-resolved .issue-bullet { color: #10B981; }
+  .issue-row-text strong { font-weight: 600; color: #1A1A2E; }
+
+  .issue-row-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding-top: 1px; }
+  .issue-resolved-label { font-size: 10.5px; font-weight: 500; color: #059669; white-space: nowrap; }
+
+  /* ── Buttons ── */
+  .btn-resolve, .btn-undo {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'DM Sans', sans-serif; font-weight: 600;
+    border-radius: 5px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  .btn-resolve {
+    font-size: 11px; padding: 3px 8px 3px 7px;
+    color: #5A58F2; background: #F0EFFF; border: 1.5px solid #C7C5FA;
+  }
+  .btn-resolve:hover { background: #E4E2FF; border-color: #A09CF5; }
+  .btn-resolve:active { background: #D4D1FF; }
+  .btn-resolve.loading { opacity: 0.6; cursor: wait; pointer-events: none; }
+  .btn-resolve .sparkle { transition: transform 0.2s; }
+  .btn-resolve:hover:not(.loading) .sparkle { transform: scale(1.15) rotate(-5deg); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-resolve.loading .sparkle { animation: spin 0.7s linear infinite; transform-origin: center; }
+
+  .btn-undo {
+    font-size: 10.5px; padding: 2px 8px;
+    color: #6B7280; background: #F9FAFB; border: 1.5px solid #E5E7EB;
+  }
+  .btn-undo:hover { background: #F3F4F6; border-color: #D1D5DB; color: #374151; }
+
+  /* ── Resolve dropdown ── */
+  .resolve-wrap { position: relative; display: inline-flex; }
+
+  .btn-resolve-split {
+    display: inline-flex; border-radius: 5px; overflow: visible;
+    border: 1.5px solid #C7C5FA;
+  }
+  .btn-resolve-split .split-main {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
+    color: #5A58F2; background: #F0EFFF;
+    padding: 3px 7px 3px 6px; cursor: pointer; border: none; border-right: 1px solid #C7C5FA;
+    border-radius: 4px 0 0 4px;
+    transition: background 0.15s;
+  }
+  .btn-resolve-split .split-main:hover { background: #E4E2FF; }
+  .btn-resolve-split .split-main.loading { opacity: 0.6; cursor: wait; pointer-events: none; }
+  .btn-resolve-split .split-main.loading .sparkle { animation: spin 0.7s linear infinite; transform-origin: center; }
+  .btn-resolve-split .split-main .sparkle { transition: transform 0.2s; }
+  .btn-resolve-split .split-main:hover:not(.loading) .sparkle { transform: scale(1.15) rotate(-5deg); }
+
+  .btn-resolve-split .split-caret {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; background: #F0EFFF; cursor: pointer; border: none;
+    border-radius: 0 4px 4px 0;
+    transition: background 0.15s;
+  }
+  .btn-resolve-split .split-caret:hover { background: #E4E2FF; }
+  .btn-resolve-split.open .split-caret { background: #E4E2FF; }
+
+  .resolve-dropdown {
+    display: none;
+    position: absolute; top: calc(100% + 4px); right: 0;
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 7px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    min-width: 160px; z-index: 200;
+    overflow: hidden;
+  }
+  .resolve-dropdown.open { display: block; }
+
+  .dropdown-item {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 9px 12px; cursor: pointer;
+    transition: background 0.12s;
+  }
+  .dropdown-item:hover { background: #F5F3FF; }
+  .dropdown-item + .dropdown-item { border-top: 1px solid #F3F4F6; }
+
+  .dropdown-item-icon {
+    width: 26px; height: 26px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .icon-truncate { background: #F3F4F6; }
+  .icon-rewrite  { background: #F0EFFF; }
+
+  .dropdown-item-text { display: flex; flex-direction: column; gap: 1px; }
+  .dropdown-item-label { font-size: 12px; font-weight: 600; color: #1A1A2E; }
+  .dropdown-item-desc  { font-size: 10.5px; color: #6B7280; line-height: 1.4; }
+
+  /* ── Collapsible header ── */
+  .issues-toggle {
+    display: none;
+    align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 8px; padding: 8px 12px;
+    border: 1px solid #E5E7EB; border-radius: 7px;
+    background: #FAFAFA; cursor: pointer; user-select: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .issues-toggle:hover { background: #F3F4F6; }
+  .issues-toggle.visible { display: flex; }
+  .issues-toggle.all-resolved { border-color: #A7F3D0; background: #F0FDF9; }
+  .issues-toggle.all-resolved:hover { background: #ECFDF5; }
+
+  .issues-toggle-left { display: flex; align-items: center; gap: 8px; }
+
+  .issues-toggle-badge {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+    background: #FEE2E2; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #B91C1C;
+    transition: background 0.3s, color 0.3s;
+  }
+  .issues-toggle.all-resolved .issues-toggle-badge { background: #D1FAE5; color: #059669; }
+
+  .issues-toggle-label {
+    font-size: 12.5px; font-weight: 600; color: #374151;
+  }
+  .issues-toggle.all-resolved .issues-toggle-label { color: #065F46; }
+
+  .issues-toggle-chevron {
+    color: #9CA3AF; flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+  .issues-toggle.open .issues-toggle-chevron { transform: rotate(180deg); }
+
+  /* ── Field actions ── */
+  .field-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .btn-save   { font-size: 12.5px; font-weight: 500; color: #5A58F2; background: none; border: none; cursor: pointer; padding: 0; }
+  .btn-cancel { font-size: 12.5px; font-weight: 500; color: #5A58F2; background: none; border: none; cursor: pointer; padding: 0; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Scenario B — Isolated</h1>
+  <h2>Live Validation · Per-Publisher Blocks</h2>
+  <p>Type or paste — tabs appear per tier with issue counts, per-publisher breakdown inside</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="1" y="1" width="14" height="14" rx="3"/>
+      <path d="M4 8h8M4 5h8M4 11h5"/>
+    </svg>
+    <span class="card-title">Business Details</span>
+  </div>
+
+  <div class="card-body">
+    <div class="field-row">
+      <div class="field-label-col">
+        <div class="field-label">Description <span class="info-icon">i</span></div>
+        <div class="field-sub">description</div>
+      </div>
+      <div class="field-input-col">
+
+        <textarea id="main-textarea" rows="4" placeholder="Enter a description…"></textarea>
+        <div class="char-counter" id="char-counter">0 characters</div>
+
+        <!-- Collapsible header -->
+        <div class="issues-toggle" id="issues-toggle" onclick="toggleIssuesPanel()">
+          <div class="issues-toggle-left">
+            <div class="issues-toggle-badge" id="toggle-badge">4</div>
+            <span class="issues-toggle-label" id="toggle-label">Listings issues with 4 publishers</span>
+          </div>
+          <svg class="issues-toggle-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <div class="validation-panel" id="validation-panel">
+          <div class="validation-shell" id="validation-shell">
+            <div class="tab-bar" id="tab-bar"></div>
+
+            <!-- ── Tier 1 content ── -->
+            <div class="tab-content" id="content-tier1">
+              <p class="tab-intro">Description is invalid for <strong>2 of your preferred publishers</strong>. If you use this description, your listings on these publishers will not sync.</p>
+              <div class="publisher-list">
+
+                <!-- Google Business Profile -->
+                <div class="publisher-block" id="pub-gbp">
+                  <div class="publisher-block-header">
+                    <div class="publisher-name"><span class="pub-dot"></span>Google Business Profile</div>
+                    <div class="publisher-header-right">
+                      <span class="publisher-status status-error" id="status-gbp">Sync will fail</span>
+                      <div id="pub-actions-gbp"></div>
+                    </div>
+                  </div>
+                  <div class="publisher-block-body">
+                    <div class="issue-row issue-hidden" id="issue-gbp-chars">
+                      <div class="issue-row-text">
+                        <span class="issue-bullet">•</span>
+                        <span>Reduce to <strong>500 or fewer</strong> characters to meet Google Business Profile's character limit</span>
+                      </div>
+                      <div class="issue-row-actions" id="iactions-gbp-chars"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Facebook -->
+                <div class="publisher-block" id="pub-fb">
+                  <div class="publisher-block-header">
+                    <div class="publisher-name"><span class="pub-dot"></span>Facebook</div>
+                    <div class="publisher-header-right">
+                      <span class="publisher-status status-error" id="status-fb">Sync will fail</span>
+                      <div id="pub-actions-fb"></div>
+                    </div>
+                  </div>
+                  <div class="publisher-block-body">
+                    <div class="issue-row issue-hidden" id="issue-fb-chars">
+                      <div class="issue-row-text">
+                        <span class="issue-bullet">•</span>
+                        <span>Reduce to <strong>500 or fewer</strong> characters to meet Facebook's character limit</span>
+                      </div>
+                      <div class="issue-row-actions" id="iactions-fb-chars"></div>
+                    </div>
+                    <div class="issue-row issue-hidden" id="issue-fb-url">
+                      <div class="issue-row-text">
+                        <span class="issue-bullet">•</span>
+                        <span>Remove any <strong>URLs</strong> — Facebook does not permit web addresses in descriptions</span>
+                      </div>
+                      <div class="issue-row-actions" id="iactions-fb-url"></div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- ── Rest of Network content ── -->
+            <div class="tab-content" id="content-network">
+              <p class="tab-intro">Description is invalid for <strong>publishers in your network</strong>. If you use this description, your listings on these publishers will not sync.</p>
+              <div class="publisher-list">
+
+                <!-- Apple Maps -->
+                <div class="publisher-block" id="pub-apple">
+                  <div class="publisher-block-header">
+                    <div class="publisher-name"><span class="pub-dot"></span>Apple Maps</div>
+                    <div class="publisher-header-right">
+                      <span class="publisher-status status-error" id="status-apple">Sync will fail</span>
+                      <div id="pub-actions-apple"></div>
+                    </div>
+                  </div>
+                  <div class="publisher-block-body">
+                    <div class="issue-row issue-hidden" id="issue-apple-chars">
+                      <div class="issue-row-text">
+                        <span class="issue-bullet">•</span>
+                        <span>Reduce to <strong>300 or fewer</strong> characters to meet Apple Maps' character limit</span>
+                      </div>
+                      <div class="issue-row-actions" id="iactions-apple-chars"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Restaurants.com -->
+                <div class="publisher-block" id="pub-rest">
+                  <div class="publisher-block-header">
+                    <div class="publisher-name"><span class="pub-dot"></span>Restaurants.com</div>
+                    <div class="publisher-header-right">
+                      <span class="publisher-status status-error" id="status-rest">Sync will fail</span>
+                      <div id="pub-actions-rest"></div>
+                    </div>
+                  </div>
+                  <div class="publisher-block-body">
+                    <div class="issue-row issue-hidden" id="issue-rest-chars">
+                      <div class="issue-row-text">
+                        <span class="issue-bullet">•</span>
+                        <span>Reduce to <strong>300 or fewer</strong> characters to meet Restaurants.com's character limit</span>
+                      </div>
+                      <div class="issue-row-actions" id="iactions-rest-chars"></div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="field-actions">
+          <button class="btn-save">Save</button>
+          <button class="btn-cancel">Cancel</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Config ──
+  const CHAR_LIMITS = { gbp: 500, fb: 500, apple: 300, rest: 300 };
+  const PUB_TAB = { gbp: 'tier1', fb: 'tier1', apple: 'network', rest: 'network' };
+  const TAB_ORDER = ['tier1', 'network'];
+  const TAB_CFG = {
+    tier1:   { label: 'Tier 1',         badgeClass: 'badge-tier1' },
+    network: { label: 'Rest of Network', badgeClass: 'badge-network' }
+  };
+
+  // All pub/issue combinations with their auto-fix type
+  // fixType: 'chars' = trim, 'url' = strip URLs, null = manual only
+  const ISSUES = {
+    'gbp-chars':   { pubId: 'gbp',   type: 'chars', fixType: 'chars' },
+    'fb-chars':    { pubId: 'fb',    type: 'chars', fixType: 'chars' },
+    'fb-url':      { pubId: 'fb',    type: 'url',   fixType: 'url'   },
+    'apple-chars': { pubId: 'apple', type: 'chars', fixType: 'chars' },
+    'rest-chars':  { pubId: 'rest',  type: 'chars', fixType: 'chars' }
+  };
+
+  // State
+  const issueState = {};
+  Object.keys(ISSUES).forEach(k => { issueState[k] = { resolved: false, prev: null }; });
+
+  const tabVisible = { tier1: false, network: false };
+  let activeTab = null;
+  let openDropdown = null; // id of currently open dropdown
+
+  // ── Helpers ──
+  const ta = () => document.getElementById('main-textarea');
+
+  function trimToLimit(text, limit) {
+    if (text.length <= limit) return text;
+    const cut = text.slice(0, limit);
+    const sp = cut.lastIndexOf(' ');
+    return (sp > 0 ? cut.slice(0, sp) : cut).replace(/[,;]$/, '').trim() + '…';
+  }
+
+  function removeUrls(text) {
+    return text.replace(/https?:\/\/\S+/g, '').replace(/\bwww\.\S+/g, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  function hasUrl(text) { return /https?:\/\/\S+|www\.\S+/.test(text); }
+
+  const SPARKLE = `<svg class="sparkle" width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5Z" fill="#5A58F2"/><path d="M13 1l.75 2.25L16 4l-2.25.75L13 7l-.75-2.25L10 4l2.25-.75Z" fill="#A09CF5"/></svg>`;
+  const UNDO_ICO = `<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3.5 9.5C4.5 6.5 7.5 4.5 11 5.5c2 .6 3.5 2.2 4 4" stroke="#6B7280" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M3.5 4.5v5h5" stroke="#6B7280" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+
+  // ── Input listener ──
+  document.getElementById('main-textarea').addEventListener('input', function () {
+    closeAllDropdowns();
+    const len = this.value.length;
+    updateCounter(len);
+    refreshAll(len, this.value);
+  });
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.resolve-wrap')) closeAllDropdowns();
+  });
+
+  function closeAllDropdowns() {
+    document.querySelectorAll('.resolve-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.btn-resolve-split.open').forEach(b => b.classList.remove('open'));
+    openDropdown = null;
+  }
+
+  function updateCounter(len) {
+    const el = document.getElementById('char-counter');
+    el.textContent = `${len.toLocaleString()} character${len === 1 ? '' : 's'}`;
+    el.className = 'char-counter';
+    if (len > 500)      el.classList.add('error');
+    else if (len > 270) el.classList.add('warn');
+  }
+
+  // ── Master refresh — called after any state change ──
+  function refreshAll(len, text) {
+    if (len === undefined) { const el = ta(); len = el.value.length; text = el.value; }
+
+    // Determine which issues are currently active (threshold exceeded, not resolved)
+    const active = {
+      'gbp-chars':   len > 500   && !issueState['gbp-chars'].resolved,
+      'fb-chars':    len > 500   && !issueState['fb-chars'].resolved,
+      'fb-url':      hasUrl(text) && !issueState['fb-url'].resolved,
+      'apple-chars': len > 300   && !issueState['apple-chars'].resolved,
+      'rest-chars':  len > 300   && !issueState['rest-chars'].resolved
+    };
+
+    // Show/hide issue rows
+    Object.entries(active).forEach(([key, isActive]) => {
+      const row = document.getElementById(`issue-${key.replace('-', '-').replace('chars','chars').replace('url','url')}`);
+      // id format: issue-gbp-chars
+      const rowEl = document.getElementById(`issue-${ISSUES[key].pubId}-${ISSUES[key].type}`);
+      if (!rowEl) return;
+      if (isActive || issueState[key].resolved) rowEl.classList.remove('issue-hidden');
+      else rowEl.classList.add('issue-hidden');
+    });
+
+    // Rebuild action buttons for each issue row
+    Object.entries(ISSUES).forEach(([key, cfg]) => {
+      renderIssueActions(key, cfg, active[key]);
+    });
+
+    // Update publisher statuses
+    updatePubStatus('gbp',   active['gbp-chars']);
+    updatePubStatus('fb',    active['fb-chars'] || active['fb-url']);
+    updatePubStatus('apple', active['apple-chars']);
+    updatePubStatus('rest',  active['rest-chars']);
+
+    // Publisher-level resolve buttons
+    renderPubActions('gbp',   ['gbp-chars'],              active);
+    renderPubActions('fb',    ['fb-chars', 'fb-url'],     active);
+    renderPubActions('apple', ['apple-chars'],             active);
+    renderPubActions('rest',  ['rest-chars'],              active);
+
+    // Tab visibility
+    const tier1Active   = active['gbp-chars'] || active['fb-chars'] || active['fb-url']
+                        || issueState['gbp-chars'].resolved || issueState['fb-chars'].resolved || issueState['fb-url'].resolved;
+    const networkActive = active['apple-chars'] || active['rest-chars']
+                        || issueState['apple-chars'].resolved || issueState['rest-chars'].resolved;
+
+    const changed = tabVisible.tier1 !== tier1Active || tabVisible.network !== networkActive;
+    tabVisible.tier1   = tier1Active;
+    tabVisible.network = networkActive;
+    if (changed) rebuildTabs();
+
+    updateTabCounts(active);
+    updatePanelAndShell(active);
+    updateTextareaState(active);
+  }
+
+  function renderIssueActions(key, cfg, isActive) {
+    const el = document.getElementById(`iactions-${cfg.pubId}-${cfg.type}`);
+    if (!el) return;
+    const s = issueState[key];
+
+    if (s.resolved) {
+      el.innerHTML = `<span class="issue-resolved-label">Resolved</span>
+        <button class="btn-undo" onclick="undoIssue('${key}')">
+          ${UNDO_ICO} Undo
+        </button>`;
+    } else if (isActive) {
+      if (cfg.fixType === 'url') {
+        // URL: no AI rewrite option — just a single resolve
+        el.innerHTML = buildSplitButton(`issue-dd-${key}`, `resolveIssue('${key}', 'truncate')`);
+      } else {
+        el.innerHTML = buildSplitButton(`issue-dd-${key}`, `resolveIssue('${key}', 'truncate')`);
+      }
+    } else {
+      el.innerHTML = '';
+    }
+  }
+
+  function renderPubActions(pubId, issueKeys, active) {
+    const el = document.getElementById(`pub-actions-${pubId}`);
+    if (!el) return;
+
+    const anyActive   = issueKeys.some(k => active[k]);
+    const anyResolved = issueKeys.some(k => issueState[k].resolved);
+    const allResolved = issueKeys.every(k => !active[k] && issueState[k].resolved || (!active[k] && !issueState[k].resolved));
+
+    // Show pub-level resolve if any issue is currently active (unresolved + threshold exceeded)
+    if (anyActive) {
+      el.innerHTML = buildSplitButton(`pub-dd-${pubId}`, `resolvePublisher('${pubId}', 'truncate')`);
+    } else if (anyResolved && !anyActive) {
+      el.innerHTML = `<button class="btn-undo" onclick="undoPublisher('${pubId}')">
+        ${UNDO_ICO} Undo
+      </button>`;
+    } else {
+      el.innerHTML = '';
+    }
+  }
+
+  // Build a split resolve button + dropdown
+  function buildSplitButton(ddId, mainAction) {
+    return `<div class="resolve-wrap">
+      <div class="btn-resolve-split" id="wrap-${ddId}">
+        <button class="split-main" onclick="${mainAction}">
+          ${SPARKLE} Resolve
+        </button>
+        <button class="split-caret" onclick="toggleDropdown('${ddId}', event)">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M1.5 3L4 5.5 6.5 3" stroke="#5A58F2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="resolve-dropdown" id="${ddId}">
+        <div class="dropdown-item" onclick="runFromDropdown('${ddId}', '${mainAction.replace('truncate', 'truncate')}')">
+          <div class="dropdown-item-icon icon-truncate">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4h12M2 8h8M2 12h5" stroke="#374151" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M13 10l-2 2 2 2" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dropdown-item-text">
+            <span class="dropdown-item-label">Truncate</span>
+            <span class="dropdown-item-desc">Clip description to fit the limit</span>
+          </div>
+        </div>
+        <div class="dropdown-item" onclick="runFromDropdown('${ddId}', '${mainAction.replace('truncate', 'rewrite')}')">
+          <div class="dropdown-item-icon icon-rewrite">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M9 2l5 5-8 8H1v-5L9 2Z" stroke="#5A58F2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <path d="M12 5l-1-1" stroke="#5A58F2" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="dropdown-item-text">
+            <span class="dropdown-item-label">Rewrite</span>
+            <span class="dropdown-item-desc">Rewrite to fit while preserving meaning</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function toggleDropdown(ddId, e) {
+    e.stopPropagation();
+    const dd = document.getElementById(ddId);
+    const wrap = document.getElementById(`wrap-${ddId}`);
+    if (!dd) return;
+    const isOpen = dd.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen) {
+      dd.classList.add('open');
+      wrap.classList.add('open');
+      openDropdown = ddId;
+    }
+  }
+
+  function runFromDropdown(ddId, actionCall) {
+    closeAllDropdowns();
+    // Parse out function name and args from the action string
+    const match = actionCall.match(/^(\w+)\((.+)\)$/);
+    if (!match) return;
+    const fn = window[match[1]];
+    const args = match[2].split(',').map(a => a.trim().replace(/^'|'$/g, ''));
+    if (fn) fn(...args);
+  }
+
+  // ── Resolve a single issue ──
+  function resolveIssue(key, mode) {
+    const cfg = ISSUES[key];
+    const mainBtn = document.querySelector(`#iactions-${cfg.pubId}-${cfg.type} .split-main`);
+    if (mainBtn) mainBtn.classList.add('loading');
+
+    setTimeout(() => {
+      const el = ta();
+      const snap = el.value;
+      issueState[key].prev = snap;
+
+      if (cfg.fixType === 'chars') {
+        const limit = CHAR_LIMITS[cfg.pubId];
+        el.value = trimToLimit(el.value, limit);
+        // Cascade to other char-limit issues satisfied by this trim
+        cascadeChars(cfg.pubId, limit, snap);
+      } else if (cfg.fixType === 'url') {
+        el.value = removeUrls(el.value);
+      }
+
+      issueState[key].resolved = true;
+      updateCounter(el.value.length);
+      refreshAll(el.value.length, el.value);
+    }, 800);
+  }
+
+  // ── Resolve all issues for a publisher ──
+  function resolvePublisher(pubId, mode) {
+    const mainBtn = document.querySelector(`#pub-actions-${pubId} .split-main`);
+    if (mainBtn) mainBtn.classList.add('loading');
+
+    setTimeout(() => {
+      const el = ta();
+      const snap = el.value;
+      const len = () => el.value.length;
+
+      // Apply char limit fix first
+      const charKey = `${pubId}-chars`;
+      if (ISSUES[charKey] && !issueState[charKey].resolved && len() > CHAR_LIMITS[pubId]) {
+        issueState[charKey].prev = snap;
+        el.value = trimToLimit(el.value, CHAR_LIMITS[pubId]);
+        issueState[charKey].resolved = true;
+        cascadeChars(pubId, CHAR_LIMITS[pubId], snap);
+      }
+
+      // Apply URL fix if applicable
+      const urlKey = `${pubId}-url`;
+      if (ISSUES[urlKey] && !issueState[urlKey].resolved && hasUrl(el.value)) {
+        issueState[urlKey].prev = snap;
+        el.value = removeUrls(el.value);
+        issueState[urlKey].resolved = true;
+      }
+
+      updateCounter(el.value.length);
+      refreshAll(el.value.length, el.value);
+    }, 800);
+  }
+
+  // Cascade char resolution to other publishers whose limit is >= the one just applied
+  function cascadeChars(sourcePubId, limit, snap) {
+    const el = ta();
+    const newLen = el.value.length;
+    Object.entries(CHAR_LIMITS).forEach(([pubId, pubLimit]) => {
+      if (pubId === sourcePubId) return;
+      const key = `${pubId}-chars`;
+      if (!ISSUES[key]) return;
+      if (pubLimit >= limit && newLen <= pubLimit && !issueState[key].resolved) {
+        issueState[key].prev = snap;
+        issueState[key].resolved = true;
+      }
+    });
+  }
+
+  // ── Undo a single issue ──
+  function undoIssue(key) {
+    const el = ta();
+    const snap = issueState[key].prev;
+    el.value = snap || el.value;
+    issueState[key].resolved = false;
+    issueState[key].prev = null;
+
+    // Un-cascade char resolutions that depended on this fix
+    if (ISSUES[key].fixType === 'chars') {
+      const limit = CHAR_LIMITS[ISSUES[key].pubId];
+      Object.entries(CHAR_LIMITS).forEach(([pubId, pubLimit]) => {
+        if (pubId === ISSUES[key].pubId) return;
+        const k = `${pubId}-chars`;
+        if (!ISSUES[k]) return;
+        if (pubLimit >= limit && issueState[k].resolved && el.value.length > pubLimit) {
+          issueState[k].resolved = false;
+          issueState[k].prev = null;
+        }
+      });
+    }
+
+    updateCounter(el.value.length);
+    refreshAll(el.value.length, el.value);
+  }
+
+  // ── Undo all issues for a publisher ──
+  function undoPublisher(pubId) {
+    const el = ta();
+    // Use the earliest snapshot available across this pub's issues
+    const keys = Object.keys(ISSUES).filter(k => ISSUES[k].pubId === pubId);
+    const snap = keys.map(k => issueState[k].prev).find(Boolean);
+    if (snap) el.value = snap;
+
+    keys.forEach(k => {
+      if (issueState[k].resolved) {
+        issueState[k].resolved = false;
+        issueState[k].prev = null;
+        // Un-cascade
+        if (ISSUES[k].fixType === 'chars') {
+          const limit = CHAR_LIMITS[pubId];
+          Object.entries(CHAR_LIMITS).forEach(([oPubId, oLimit]) => {
+            if (oPubId === pubId) return;
+            const ok = `${oPubId}-chars`;
+            if (!ISSUES[ok]) return;
+            if (oLimit >= limit && issueState[ok].resolved && el.value.length > oLimit) {
+              issueState[ok].resolved = false;
+              issueState[ok].prev = null;
+            }
+          });
+        }
+      }
+    });
+
+    updateCounter(el.value.length);
+    refreshAll(el.value.length, el.value);
+  }
+
+  // ── Publisher status dot + badge ──
+  function updatePubStatus(pubId, hasActiveError) {
+    const block = document.getElementById(`pub-${pubId}`);
+    const statusEl = document.getElementById(`status-${pubId}`);
+    if (!block || !statusEl) return;
+
+    // Get all issue keys for this publisher
+    const keys = Object.keys(ISSUES).filter(k => ISSUES[k].pubId === pubId);
+    const anyResolved = keys.some(k => issueState[k].resolved);
+
+    if (hasActiveError) {
+      block.classList.remove('pub-resolved');
+      statusEl.className = 'publisher-status status-error';
+      statusEl.textContent = 'Sync will fail';
+    } else if (anyResolved) {
+      block.classList.add('pub-resolved');
+      statusEl.className = 'publisher-status status-resolved';
+      statusEl.textContent = 'Will sync';
+    } else {
+      block.classList.remove('pub-resolved');
+      statusEl.className = 'publisher-status status-error';
+      statusEl.textContent = 'Sync will fail';
+    }
+  }
+
+  // ── Tab bar ──
+  function rebuildTabs() {
+    const bar = document.getElementById('tab-bar');
+    const visible = TAB_ORDER.filter(id => tabVisible[id]);
+    bar.innerHTML = visible.map(id => {
+      const cfg = TAB_CFG[id];
+      return `<div class="tab has-error" id="tab-${id}" onclick="selectTab('${id}')">
+        <span class="tab-badge ${cfg.badgeClass}">${cfg.label}</span>
+        <span class="tab-count" id="count-${id}">0</span>
+      </div>`;
+    }).join('');
+    const preferred = (activeTab && tabVisible[activeTab]) ? activeTab : visible[0];
+    if (preferred) selectTab(preferred);
+  }
+
+  function selectTab(id) {
+    activeTab = id;
+    TAB_ORDER.forEach(bid => {
+      const tab = document.getElementById(`tab-${bid}`);
+      if (tab) tab.classList.toggle('active', bid === id);
+      const content = document.getElementById(`content-${bid}`);
+      if (content) content.classList.toggle('active', bid === id);
+    });
+  }
+
+  function updateTabCounts(active) {
+    // Count publishers with active (unresolved) issues per tab
+    const counts = { tier1: 0, network: 0 };
+    const pubsWithError = new Set();
+    Object.entries(active).forEach(([key, isActive]) => {
+      if (isActive) pubsWithError.add(ISSUES[key].pubId);
+    });
+    pubsWithError.forEach(pubId => { counts[PUB_TAB[pubId]]++; });
+
+    TAB_ORDER.forEach(tabId => {
+      const el = document.getElementById(`count-${tabId}`);
+      if (!el) return;
+      const n = counts[tabId];
+      el.textContent = n;
+      el.className = 'tab-count' + (n === 0 ? ' count-resolved' : '');
+      if (n === 0) {
+        // Show a check if all are resolved
+        const allRes = TAB_ORDER.includes(tabId) &&
+          Object.keys(ISSUES).filter(k => PUB_TAB[ISSUES[k].pubId] === tabId)
+            .every(k => !active[k]);
+        el.textContent = allRes ? '✓' : '0';
+        el.className = 'tab-count count-resolved';
+      }
+
+      const tab = document.getElementById(`tab-${tabId}`);
+      if (tab) tab.classList.toggle('tab-resolved', n === 0 && tabVisible[tabId]);
+    });
+  }
+
+  // ── Collapsible toggle ──
+  let panelOpen = false;
+
+  function toggleIssuesPanel() {
+    panelOpen = !panelOpen;
+    const toggle = document.getElementById('issues-toggle');
+    const panel  = document.getElementById('validation-panel');
+    toggle.classList.toggle('open', panelOpen);
+    panel.classList.toggle('open', panelOpen);
+  }
+
+  function updatePanelAndShell(active) {
+    const anyVisible = TAB_ORDER.some(id => tabVisible[id]);
+    const toggle = document.getElementById('issues-toggle');
+    const panel  = document.getElementById('validation-panel');
+
+    panel.classList.toggle('visible', anyVisible);
+    panel.classList.toggle('open', panelOpen && anyVisible);
+
+    // Count total publishers with active issues
+    const pubsWithError = new Set();
+    Object.entries(active).forEach(([key, isActive]) => {
+      if (isActive) pubsWithError.add(ISSUES[key].pubId);
+    });
+    const errorCount = pubsWithError.size;
+    const totalPubs = Object.keys(CHAR_LIMITS).length; // 4
+
+    // Show toggle when there are (or were) issues
+    toggle.classList.toggle('visible', anyVisible);
+    toggle.classList.toggle('open', panelOpen);
+
+    const anyActive = Object.values(active).some(Boolean);
+    toggle.classList.toggle('all-resolved', !anyActive && anyVisible);
+    document.getElementById('validation-shell').classList.toggle('all-resolved', !anyActive && anyVisible);
+
+    // Update label
+    const badge = document.getElementById('toggle-badge');
+    const label = document.getElementById('toggle-label');
+    if (!anyActive && anyVisible) {
+      badge.textContent = '✓';
+      label.textContent = 'All listings issues resolved';
+    } else {
+      badge.textContent = errorCount;
+      label.textContent = `Listings issues with ${errorCount} publisher${errorCount === 1 ? '' : 's'}`;
+    }
+  }
+
+  function updateTextareaState(active) {
+    const el = ta();
+    const anyError = Object.values(active).some(Boolean);
+    const anyResolved = Object.values(issueState).some(s => s.resolved);
+    el.classList.remove('state-error', 'state-resolved');
+    if (anyError)         el.classList.add('state-error');
+    else if (anyResolved) el.classList.add('state-resolved');
+  }
+</script>
+</body>
+</html>
