@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scenario B – Live Validation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #F0F0F5;
+    color: #1A1A2E;
+    padding: 48px 40px;
+    min-height: 100vh;
+  }
+
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #5A58F2; margin-bottom: 6px; }
+  .page-header h2 { font-size: 20px; font-weight: 600; color: #1A1A2E; margin-bottom: 4px; }
+  .page-header p  { font-size: 13px; color: #6B7280; }
+
+  .card { background: #fff; border-radius: 12px; border: 1px solid #E5E7EB; max-width: 820px; }
+  .card-header {
+    padding: 14px 20px; border-bottom: 1px solid #E5E7EB;
+    display: flex; align-items: center; gap: 8px;
+    background: #FAFAFA; border-radius: 12px 12px 0 0;
+  }
+  .card-header svg { color: #9CA3AF; }
+  .card-title { font-size: 13px; font-weight: 600; color: #374151; }
+  .card-body { padding: 24px; }
+
+  .field-row { display: flex; gap: 20px; align-items: flex-start; }
+  .field-label-col { width: 120px; flex-shrink: 0; padding-top: 10px; }
+  .field-label { font-size: 13px; font-weight: 500; color: #374151; display: flex; align-items: center; gap: 4px; }
+  .info-icon {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1.5px solid #9CA3AF; color: #9CA3AF;
+    font-size: 9px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: default; flex-shrink: 0;
+  }
+  .field-sub { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+  .field-input-col { flex: 1; min-width: 0; }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%; padding: 9px 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: #1A1A2E;
+    resize: vertical; outline: none; line-height: 1.5;
+    border-radius: 6px; min-height: 88px;
+    border: 1.5px solid #D1D5DB; background: #fff;
+    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+  }
+  textarea:focus {
+    border-color: #9CA3AF;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+  }
+  textarea.state-error { border-color: #FCA5A5; background: #FFF8F8; }
+  textarea.state-error:focus { border-color: #EF4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+  textarea.state-resolved { border-color: #6EE7B7; background: #F0FDF9; }
+  textarea.state-resolved:focus { border-color: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+
+  /* ── Char counter ── */
+  .char-counter {
+    display: flex;
+    justify-content: flex-end;
+    font-size: 11px;
+    color: #9CA3AF;
+    margin-top: 4px;
+    transition: color 0.2s;
+    font-variant-numeric: tabular-nums;
+  }
+  .char-counter.warn { color: #D97706; }
+  .char-counter.error { color: #EF4444; font-weight: 600; }
+
+  /* ── Issue block ── */
+  .issue-block {
+    margin-top: 8px;
+    border: 1px solid #FCA5A5;
+    border-radius: 8px;
+    background: #FFF8F8;
+    overflow: hidden;
+    transition: border-color 0.35s, background 0.35s;
+
+    /* Hidden by default — animate in */
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: max-height 0.3s ease, opacity 0.25s ease, margin-top 0.3s ease, border-color 0.35s, background 0.35s;
+    margin-top: 0;
+  }
+
+  .issue-block.visible {
+    max-height: 400px;
+    opacity: 1;
+    pointer-events: auto;
+    margin-top: 8px;
+  }
+
+  .issue-block-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 8px 12px;
+    background: #FEF2F2;
+    border-bottom: 1px solid #FCA5A5;
+    transition: background 0.35s, border-color 0.35s;
+  }
+
+  .issue-block-title {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: #7F1D1D;
+  }
+
+  .issue-block-body {
+    padding: 10px 12px;
+    font-size: 12.5px; color: #374151; line-height: 1.55;
+  }
+
+  .issue-intro { margin-bottom: 8px; }
+  .issue-intro strong { font-weight: 600; color: #1A1A2E; }
+
+  /* ── Resolution rows ── */
+  .resolution-list { display: flex; flex-direction: column; gap: 5px; }
+
+  .resolution-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 10px;
+    background: rgba(239,68,68,0.04);
+    border: 1px solid rgba(239,68,68,0.14);
+    border-radius: 6px;
+    transition: background 0.3s, border-color 0.3s, max-height 0.25s ease, opacity 0.2s ease, padding 0.25s, margin 0.25s;
+    overflow: hidden;
+  }
+
+  /* Hide a row (when its threshold is no longer exceeded) */
+  .resolution-row.row-hidden {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    pointer-events: none;
+  }
+
+  .resolution-row-text {
+    font-size: 12.5px; color: #374151; line-height: 1.5; flex: 1;
+  }
+  .resolution-row-text::before {
+    content: '•'; margin-right: 7px;
+    color: #EF4444; font-size: 14px; line-height: 1; vertical-align: middle;
+  }
+  .resolution-row-text strong { font-weight: 600; color: #1A1A2E; }
+
+  .resolution-row.row-resolved {
+    background: rgba(16,185,129,0.05);
+    border-color: rgba(16,185,129,0.25);
+  }
+  .resolution-row.row-resolved .resolution-row-text::before {
+    content: '✓'; color: #10B981; font-size: 12px;
+  }
+
+  .row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  .row-resolved-label {
+    font-size: 11px; font-weight: 500; color: #059669;
+    display: none;
+  }
+  .resolution-row.row-resolved .row-resolved-label { display: inline; }
+
+  /* ── Buttons ── */
+  .btn-resolve, .btn-undo {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: 'DM Sans', sans-serif; font-weight: 600;
+    border-radius: 6px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+
+  .btn-resolve {
+    font-size: 11px; padding: 2px 8px 2px 6px;
+    color: #5A58F2; background: #F0EFFF; border: 1.5px solid #C7C5FA;
+  }
+  .btn-resolve:hover { background: #E4E2FF; border-color: #A09CF5; }
+  .btn-resolve:active { background: #D4D1FF; }
+  .btn-resolve.loading { opacity: 0.6; cursor: wait; pointer-events: none; }
+  .btn-resolve .sparkle { transition: transform 0.2s; }
+  .btn-resolve:hover .sparkle { transform: scale(1.15) rotate(-5deg); }
+
+  .btn-resolve-all { font-size: 11.5px; padding: 3px 9px 3px 7px; }
+
+  .btn-undo {
+    font-size: 11px; padding: 2px 8px;
+    color: #6B7280; background: #F9FAFB; border: 1.5px solid #E5E7EB;
+  }
+  .btn-undo:hover { background: #F3F4F6; border-color: #D1D5DB; color: #374151; }
+  .btn-undo:active { background: #E5E7EB; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-resolve.loading .sparkle { animation: spin 0.7s linear infinite; transform-origin: center; }
+
+  .issue-block.block-all-resolved { border-color: #6EE7B7; background: #F0FDF9; }
+  .issue-block.block-all-resolved .issue-block-header { background: #ECFDF5; border-bottom-color: #6EE7B7; }
+  .issue-block.block-all-resolved .issue-block-title { color: #065F46; }
+
+  .field-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .btn-save   { font-size: 12.5px; font-weight: 500; color: #5A58F2; background: none; border: none; cursor: pointer; padding: 0; }
+  .btn-cancel { font-size: 12.5px; font-weight: 500; color: #5A58F2; background: none; border: none; cursor: pointer; padding: 0; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Scenario B — Isolated</h1>
+  <h2>Live Validation</h2>
+  <p>Type or paste into the field — issue blocks appear as character thresholds are crossed</p>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+      <rect x="1" y="1" width="14" height="14" rx="3"/>
+      <path d="M4 8h8M4 5h8M4 11h5"/>
+    </svg>
+    <span class="card-title">Business Details</span>
+  </div>
+
+  <div class="card-body">
+    <div class="field-row">
+      <div class="field-label-col">
+        <div class="field-label">Description <span class="info-icon">i</span></div>
+        <div class="field-sub">description</div>
+      </div>
+      <div class="field-input-col">
+
+        <textarea id="main-textarea" rows="4" placeholder="Enter a description…"></textarea>
+        <div class="char-counter" id="char-counter">0 characters</div>
+
+        <!-- Issue block — hidden until thresholds crossed -->
+        <div class="issue-block" id="issue-block">
+          <div class="issue-block-header" id="block-header">
+            <div class="issue-block-title" id="block-title">
+              <svg id="block-title-icon" width="13" height="13" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5.5" fill="#EF4444"/>
+                <path d="M4 4l4 4M8 4l-4 4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span id="block-title-text">Character limit exceeded</span>
+            </div>
+            <button class="btn-resolve btn-resolve-all" id="btn-resolve-all" onclick="resolveAll()">
+              <svg class="sparkle" width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5Z" fill="#5A58F2"/>
+                <path d="M13 1l.75 2.25L16 4l-2.25.75L13 7l-.75-2.25L10 4l2.25-.75Z" fill="#A09CF5"/>
+              </svg>
+              Resolve All
+            </button>
+          </div>
+          <div class="issue-block-body">
+            <p class="issue-intro" id="issue-intro"></p>
+            <div class="resolution-list">
+
+              <!-- Row: 500 char limit -->
+              <div class="resolution-row row-hidden" id="row-500">
+                <span class="resolution-row-text">Reduce to <strong>500 or fewer</strong> characters to resolve for <strong>Google Business Profile</strong></span>
+                <div class="row-actions" id="actions-500">
+                  <button class="btn-resolve" id="btn-resolve-500" onclick="resolveRow(500)">
+                    <svg class="sparkle" width="11" height="11" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5Z" fill="#5A58F2"/>
+                      <path d="M13 1l.75 2.25L16 4l-2.25.75L13 7l-.75-2.25L10 4l2.25-.75Z" fill="#A09CF5"/>
+                    </svg>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+
+              <!-- Row: 300 char limit -->
+              <div class="resolution-row row-hidden" id="row-300">
+                <span class="resolution-row-text">Reduce to <strong>300 or fewer</strong> characters to resolve for <strong>Apple Maps</strong> and <strong>1 other publisher</strong></span>
+                <div class="row-actions" id="actions-300">
+                  <button class="btn-resolve" id="btn-resolve-300" onclick="resolveRow(300)">
+                    <svg class="sparkle" width="11" height="11" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5Z" fill="#5A58F2"/>
+                      <path d="M13 1l.75 2.25L16 4l-2.25.75L13 7l-.75-2.25L10 4l2.25-.75Z" fill="#A09CF5"/>
+                    </svg>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="field-actions">
+          <button class="btn-save">Save</button>
+          <button class="btn-cancel">Cancel</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SPARKLE_SVG = `<svg class="sparkle" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5Z" fill="#5A58F2"/><path d="M13 1l.75 2.25L16 4l-2.25.75L13 7l-.75-2.25L10 4l2.25-.75Z" fill="#A09CF5"/></svg>`;
+  const ALL_LIMITS = [500, 300];
+  const LIMITS_CONFIG = {
+    500: { publishers: 'Google Business Profile', count: 1 },
+    300: { publishers: 'Apple Maps and 1 other publisher', count: 2 }
+  };
+
+  const previousText = {};
+  const rowResolved  = { 500: false, 300: false };
+  const cascadeResolved = { 500: false, 300: false };
+
+  function trimToLimit(text, limit) {
+    if (text.length <= limit) return text;
+    const cut = text.slice(0, limit);
+    const lastSpace = cut.lastIndexOf(' ');
+    return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;]$/, '').trim() + '…';
+  }
+
+  function getTextarea()     { return document.getElementById('main-textarea'); }
+  function getRow(limit)     { return document.getElementById(`row-${limit}`); }
+  function getActions(limit) { return document.getElementById(`actions-${limit}`); }
+
+  // ── Live validation listener ──
+  document.getElementById('main-textarea').addEventListener('input', function() {
+    const len = this.value.length;
+    updateCharCounter(len);
+    updateValidationState(len);
+  });
+
+  function updateCharCounter(len) {
+    const el = document.getElementById('char-counter');
+    el.textContent = `${len.toLocaleString()} character${len === 1 ? '' : 's'}`;
+    el.className = 'char-counter';
+    if (len > 500) el.classList.add('error');
+    else if (len > 270) el.classList.add('warn'); // approaching 300
+  }
+
+  function updateValidationState(len) {
+    const ta = getTextarea();
+    const block = document.getElementById('issue-block');
+    const exceeds500 = len > 500;
+    const exceeds300 = len > 300;
+
+    // Update textarea border
+    if (!rowResolved[500] && !rowResolved[300]) {
+      if (exceeds300 || exceeds500) {
+        ta.classList.remove('state-resolved');
+        ta.classList.add('state-error');
+      } else {
+        ta.classList.remove('state-error', 'state-resolved');
+      }
+    }
+
+    // Show or hide the block entirely
+    if (exceeds300 || exceeds500) {
+      block.classList.add('visible');
+    } else {
+      // Only hide block if no rows are resolved (don't collapse a resolved block)
+      if (!rowResolved[500] && !rowResolved[300]) {
+        block.classList.remove('visible');
+        block.classList.remove('block-all-resolved');
+      }
+    }
+
+    // Show/hide individual rows based on threshold — but never un-show a resolved row
+    updateRowVisibility(500, exceeds500);
+    updateRowVisibility(300, exceeds300);
+
+    // Update the intro text to reflect how many publishers are affected
+    updateIntroText(exceeds500, exceeds300);
+
+    // Update resolve-all visibility: only show if more than one active (unresolved) row is visible
+    syncResolveAllButton(exceeds500, exceeds300);
+  }
+
+  function updateRowVisibility(limit, exceeded) {
+    const row = getRow(limit);
+    if (exceeded && !row.classList.contains('row-resolved')) {
+      row.classList.remove('row-hidden');
+    } else if (!exceeded && !row.classList.contains('row-resolved')) {
+      row.classList.add('row-hidden');
+    }
+  }
+
+  function updateIntroText(exceeds500, exceeds300) {
+    const intro = document.getElementById('issue-intro');
+    // Count distinct publisher groups affected
+    let affectedPubs = 0;
+    if (exceeds500 && !rowResolved[500]) affectedPubs += 1; // GBP
+    if (exceeds300 && !rowResolved[300]) affectedPubs += 2; // Apple Maps + 1
+
+    if (affectedPubs === 0) {
+      intro.innerHTML = '';
+    } else {
+      intro.innerHTML = `This Description will lead to a sync failure for <strong>${affectedPubs} publisher${affectedPubs === 1 ? '' : 's'}</strong>.`;
+    }
+  }
+
+  function syncResolveAllButton(exceeds500, exceeds300) {
+    const btnAll = document.getElementById('btn-resolve-all');
+    if (!btnAll) return;
+    const activeRows = ALL_LIMITS.filter(l => {
+      const exceeded = l === 500 ? exceeds500 : exceeds300;
+      return exceeded && !rowResolved[l];
+    });
+    // Show "Resolve All" only when 2+ active rows need resolving
+    btnAll.style.display = activeRows.length >= 2 ? '' : 'none';
+  }
+
+  // ── Resolve a single row ──
+  function resolveRow(limit) {
+    const btn = document.getElementById(`btn-resolve-${limit}`);
+    btn.classList.add('loading');
+    const textNode = [...btn.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (textNode) textNode.textContent = ' Resolving…';
+
+    setTimeout(() => {
+      const ta = getTextarea();
+      const snapshot = ta.value;
+      ta.value = trimToLimit(ta.value, limit);
+      ta.classList.remove('state-error');
+      ta.classList.add('state-resolved');
+
+      // Cascade: resolve all looser (higher) limits too
+      ALL_LIMITS.filter(l => l >= limit && !rowResolved[l]).forEach(l => {
+        previousText[l] = snapshot;
+        markRowResolved(l, l !== limit);
+      });
+
+      // Re-evaluate live state based on new length
+      updateCharCounter(ta.value.length);
+      updateIntroText(ta.value.length > 500, ta.value.length > 300);
+      syncResolveAllButton(ta.value.length > 500, ta.value.length > 300);
+      checkAllResolved();
+    }, 850);
+  }
+
+  // ── Resolve all ──
+  function resolveAll() {
+    const btn = document.getElementById('btn-resolve-all');
+    btn.classList.add('loading');
+    const textNode = [...btn.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (textNode) textNode.textContent = ' Resolving…';
+    ALL_LIMITS.forEach(l => {
+      if (!rowResolved[l]) {
+        const rb = document.getElementById(`btn-resolve-${l}`);
+        if (rb) rb.classList.add('loading');
+      }
+    });
+
+    setTimeout(() => {
+      const ta = getTextarea();
+      const snapshot = ta.value;
+      ALL_LIMITS.forEach(l => { if (!rowResolved[l]) previousText[l] = snapshot; });
+      ta.value = trimToLimit(snapshot, 300);
+      ta.classList.remove('state-error');
+      ta.classList.add('state-resolved');
+      ALL_LIMITS.forEach(l => { if (!rowResolved[l]) markRowResolved(l, false); });
+      btn.style.display = 'none';
+      updateCharCounter(ta.value.length);
+      checkAllResolved();
+    }, 900);
+  }
+
+  // ── Mark a row as resolved ──
+  function markRowResolved(limit, isCascade = false) {
+    rowResolved[limit] = true;
+    cascadeResolved[limit] = isCascade;
+    const row = getRow(limit);
+    row.classList.add('row-resolved');
+    row.classList.remove('row-hidden');
+    getActions(limit).innerHTML = `
+      <span class="row-resolved-label">Resolved</span>
+      <button class="btn-undo" onclick="undoRow(${limit})">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <path d="M3.5 9.5C4.5 6.5 7.5 4.5 11 5.5c2 .6 3.5 2.2 4 4" stroke="#6B7280" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+          <path d="M3.5 4.5v5h5" stroke="#6B7280" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        Undo
+      </button>`;
+  }
+
+  // ── Undo a row ──
+  function undoRow(limit) {
+    const ta = getTextarea();
+    ta.value = previousText[limit];
+    const len = ta.value.length;
+
+    // Cascade undo: un-resolve any looser rows that were cascade-resolved by this row
+    ALL_LIMITS.filter(l => l > limit && cascadeResolved[l]).forEach(l => {
+      rowResolved[l] = false;
+      cascadeResolved[l] = false;
+      const row = getRow(l);
+      row.classList.remove('row-resolved');
+      getActions(l).innerHTML = `
+        <button class="btn-resolve" id="btn-resolve-${l}" onclick="resolveRow(${l})">
+          ${SPARKLE_SVG} Resolve
+        </button>`;
+      // Re-apply hidden state if threshold no longer exceeded
+      if (len <= l) row.classList.add('row-hidden');
+    });
+
+    rowResolved[limit] = false;
+    cascadeResolved[limit] = false;
+    const row = getRow(limit);
+    row.classList.remove('row-resolved');
+    getActions(limit).innerHTML = `
+      <button class="btn-resolve" id="btn-resolve-${limit}" onclick="resolveRow(${limit})">
+        ${SPARKLE_SVG} Resolve
+      </button>`;
+    if (len <= limit) row.classList.add('row-hidden');
+
+    // Restore error state if still over any limit
+    ta.classList.remove('state-resolved');
+    if (len > 300 || len > 500) ta.classList.add('state-error');
+
+    // Restore block error styling
+    restoreBlockErrorState();
+
+    // Hide the whole block if no thresholds are exceeded anymore
+    if (len <= 300 && len <= 500) {
+      document.getElementById('issue-block').classList.remove('visible');
+    }
+
+    updateCharCounter(len);
+    updateIntroText(len > 500, len > 300);
+    syncResolveAllButton(len > 500, len > 300);
+
+    const btnAll = document.getElementById('btn-resolve-all');
+    if (btnAll) btnAll.style.display = '';
+  }
+
+  // ── Check if all visible rows are resolved ──
+  function checkAllResolved() {
+    const ta = getTextarea();
+    const len = ta.value.length;
+    const active500 = len > 500;
+    const active300 = len > 300;
+    const allDone = (!active500 || rowResolved[500]) && (!active300 || rowResolved[300]);
+    if (allDone && (active500 || active300)) {
+      const block = document.getElementById('issue-block');
+      block.classList.add('block-all-resolved');
+      document.getElementById('block-title-icon').innerHTML =
+        `<circle cx="6" cy="6" r="5.5" fill="#10B981"/><path d="M3.5 6.2l1.8 1.8 3.2-3.2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      document.getElementById('block-title-text').textContent = 'Character limit resolved';
+      document.getElementById('issue-intro').innerHTML = 'Description has been trimmed — all affected publishers will now sync.';
+    }
+  }
+
+  // ── Restore block to error state ──
+  function restoreBlockErrorState() {
+    const block = document.getElementById('issue-block');
+    block.classList.remove('block-all-resolved');
+    document.getElementById('block-title-icon').innerHTML =
+      `<circle cx="6" cy="6" r="5.5" fill="#EF4444"/><path d="M4 4l4 4M8 4l-4 4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>`;
+    document.getElementById('block-title-text').textContent = 'Character limit exceeded';
+  }
+</script>
+</body>
+</html>
